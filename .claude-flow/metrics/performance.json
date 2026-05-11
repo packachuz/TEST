@@ -1,15 +1,129 @@
 {
-  "timestamp": "2026-05-11T04:18:21.670Z",
+  "timestamp": "2026-05-11T04:35:01.467Z",
   "mode": "headless",
   "workerType": "optimize",
   "model": "sonnet",
-  "durationMs": 114725,
-  "executionId": "optimize_1778472986945_f1e60c",
+  "durationMs": 99793,
+  "executionId": "optimize_1778474001674_l150zv",
   "success": true,
   "findings": {
-    "sections": [],
-    "codeBlocks": []
+    "sections": [
+      {
+        "title": "Performance Analysis",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "1. N+1 Query Patterns",
+        "content": "\n**Critical: Payroll processing — N database writes per employee**\n`src/app/api/payroll/[id]/process/route.ts:35-57`\n\n```typescript\n// PROBLEM: One upsert per employee = 100 round trips for 100 employees\nconst payrollItems = await Promise.all(\n  employees.map(async (emp) => {\n    return prisma.payrollItem.upsert({ ... }); // ← N individual writes\n  })\n);\n```\n\nFix — use a transaction with `createMany` and a separate update for existing records:\n\n```typescript\n// Separate new vs existing items\nconst existingItems = await prisma.payrollItem.findMany({\n  where: { payrollRunId: id },\n  select: { employeeId: true },\n});\nconst existingIds = new Set(existingItems.map((i) => i.employeeId));\n\nconst toCreate = employees.filter((e) => !existingIds.has(e.id));\nconst toUpdate = employees.filter((e) => existingIds.has(e.id));\n\nawait prisma.$transaction([\n  prisma.payrollItem.createMany({\n    data: toCreate.map((emp) => computeItem(id, emp)),\n    skipDuplicates: true,\n  }),\n  ...toUpdate.map((emp) =>\n    prisma.payrollItem.update({\n      where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: emp.id } },\n      data: computeItem(id, emp),\n    })\n  ),\n]);\n```\n\n**Sequential validation queries that could be parallel**\n`src/app/api/leaves/route.ts:44-50`\n\n```typescript\n// PROBLEM: awaited one after the other — needless latency\nconst employee = await prisma.employee.findFirst({ where: { id: employeeId, tenantId } });\nconst leaveType = await prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } });\n```\n\nFix:\n\n```typescript\nconst [employee, leaveType] = await Promise.all([\n  prisma.employee.findFirst({ where: { id: employeeId, tenantId } }),\n  prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } }),\n]);\nif (!employee) return Response.json({ error: \"Employee not found\" }, { status: 404 });\nif (!leaveType) return Response.json({ error: \"Leave type not found\" }, { status: 404 });\n```\n\n**Race condition + redundant count query for employee code generation**\n`src/app/api/employees/route.ts:44-46`\n\n```typescript\n// PROBLEM: count then create = race condition + extra round trip\nconst count = await prisma.employee.count({ where: { tenantId } });\nconst employeeCode = `EMP${String(count + 1).padStart(4, \"0\")}`;\n```\n\nFix — use a PostgreSQL sequence or generate via a single query:\n\n```typescript\n// Option A: raw sequence (most reliable)\nconst result = await prisma.$queryRaw<[{ nextval: bigint }]>`\n  SELECT nextval('\"EmployeeSeq_' || ${tenantId} || '\"')\n`;\n// Option B: simpler — use cuid/nanoid and skip sequential codes entirely\nimport { createId } from \"@paralleldrive/cuid2\";\nconst employeeCode = `EMP-${createId().slice(0, 6).toUpperCase()}`;\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "2. Missing Database Indexes",
+        "content": "\n`prisma/schema.prisma` — several high-cardinality filter columns have no index:\n\n```prisma\nmodel Employee {\n  // ADD:\n  @@index([tenantId, status])   // payroll processing filters by tenantId + status:\"ACTIVE\"\n}\n\nmodel Attendance {\n  // ADD:\n  @@index([date])               // attendance queries filter by date constantly\n  // Note: employee.tenantId join requires a cross-table path; adding tenantId\n  // directly to Attendance would eliminate the join entirely\n}\n\nmodel LeaveRequest {\n  // ADD:\n  @@index([status])             // dashboard counts PENDING leaves\n}\n\nmodel PayrollRun {\n  // ADD:\n  @@index([tenantId, status])   // dashboard finds last COMPLETED run\n  @@index([runAt])              // orderBy runAt: \"desc\"\n}\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "3. Memory Leaks — Missing AbortController on fetch calls",
+        "content": "\nAll four client pages (`employees/page.tsx`, `payroll/page.tsx`, `attendance/page.tsx`, `leaves/page.tsx`) have the same pattern:\n\n```typescript\n// PROBLEM: no cleanup — stale response can overwrite fresh data\nuseEffect(() => {\n  fetchRecords(date);\n}, [date]);\n```\n\nIn `AttendancePage` this is especially bad since the effect reruns every time `date` changes — rapid date switching queues multiple requests with no cancellation.\n\nFix (attendance example, same pattern applies to all pages):\n\n```typescript\nuseEffect(() => {\n  const controller = new AbortController();\n  setLoading(true);\n  fetch(`/api/attendance?date=${d}`, { signal: controller.signal })\n    .then((r) => r.json())\n    .then((data) => Array.isArray(data) && setRecords(data))\n    .catch((e) => { if (e.name !== \"AbortError\") setError(\"Network error\"); })\n    .finally(() => setLoading(false));\n  return () => controller.abort();\n}, [date]);\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "4. Unnecessary Re-renders",
+        "content": "\n**`fetchRuns` / `fetchLeaves` / `fetchRecords` defined as plain functions inside components**\n`payroll/page.tsx:42`, `leaves/page.tsx:37`, `attendance/page.tsx:37`\n\nThese are recreated on every render. They're also called from `useEffect` with empty deps `[]`, meaning the closure captures a stale reference. Wrap with `useCallback`:\n\n```typescript\nconst fetchRuns = useCallback(() => {\n  setLoading(true);\n  fetch(\"/api/payroll\")\n    .then((r) => r.json())\n    .then((data) => Array.isArray(data) && setRuns(data))\n    .finally(() => setLoading(false));\n}, []);\n```\n\n**Full list replacement on single-record update**\n`attendance/page.tsx:50-58` — after `markAttendance`, `fetchRecords(date)` replaces the entire `records` array, causing every table row to re-render:\n\n```typescript\n// Instead of refetching all records, update just the changed one:\nasync function markAttendance(employeeId: string, status: AttendanceStatus) {\n  setSaving(employeeId);\n  const res = await fetch(\"/api/attendance\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ employeeId, date, status }),\n  });\n  if (res.ok) {\n    setRecords((prev) =>\n      prev.map((r) => r.employee.id === employeeId ? { ...r, status } : r)\n    );\n  }\n  setSaving(null);\n}\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "5. Caching Opportunities",
+        "content": "\n**Dashboard server component — no caching**\n`src/app/(dashboard)/page.tsx:17-34`\n\nFour Prisma queries run on every page load. Add Next.js `unstable_cache` or route segment revalidation:\n\n```typescript\nimport { unstable_cache } from \"next/cache\";\n\nconst getDashboardStats = unstable_cache(\n  async (tenantId: string) => {\n    const today = new Date();\n    today.setHours(0, 0, 0, 0);\n    return Promise.all([\n      prisma.employee.count({ where: { tenantId, status: \"ACTIVE\" } }),\n      prisma.attendance.count({ where: { employee: { tenantId }, date: today, status: \"PRESENT\" } }),\n      prisma.leaveRequest.count({ where: { employee: { tenantId }, status: \"PENDING\" } }),\n      prisma.payrollRun.findFirst({ where: { tenantId, status: \"COMPLETED\" }, orderBy: { runAt: \"desc\" }, include: { payrollItems: { select: { netSalary: true } } } }),\n    ]);\n  },\n  [\"dashboard-stats\"],\n  { revalidate: 60, tags: [\"dashboard\"] }  // 60s TTL\n);\n```\n\n**API GET routes — no cache headers**\nAll GET routes return data with default no-cache behavior. Employee list changes rarely:\n\n```typescript\n// src/app/api/employees/route.ts\nreturn Response.json(employees, {\n  headers: { \"Cache-Control\": \"private, max-age=30, stale-while-revalidate=60\" },\n});\n```\n\n**Connection pool not configured**\n`src/lib/prisma.ts:8`\n\n```typescript\n// PROBLEM: defaults to pg's 10-connection pool, no tuning\nconst pool = new Pool({ connectionString: process.env.DATABASE_URL });\n\n// FIX: tune for serverless/edge workloads\nconst pool = new Pool({\n  connectionString: process.env.DATABASE_URL,\n  max: 5,          // lower for serverless to avoid exhaustion\n  idleTimeoutMillis: 10_000,\n  connectionTimeoutMillis: 2_000,\n});\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "6. Redundant Computations",
+        "content": "\n**Payroll total recomputed on every render**\n`payroll/page.tsx:97`\n\n```typescript\n// Runs on every render, for every run\nruns.map((run) => {\n  const total = run.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0);\n```\n\nFix — memoize totals:\n\n```typescript\nconst runTotals = useMemo(\n  () => Object.fromEntries(\n    runs.map((run) => [run.id, run.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0)])\n  ),\n  [runs]\n);\n// Usage: runTotals[run.id]\n```\n\n**Attendance `new Date(date + \"T00:00:00\")` in render**\n`attendance/page.tsx:77`\n\n```typescript\n// Recomputed on every render\nnew Date(date + \"T00:00:00\").toLocaleDateString(...)\n```\n\nFix:\n```typescript\nconst formattedDate = useMemo(\n  () => new Date(date + \"T00:00:00\").toLocaleDateString(\"en-US\", { dateStyle: \"long\" }),\n  [date]\n);\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Priority Order",
+        "content": "| Priority | Issue | File | Impact |\n|---|---|---|---|\n| P0 | N+1 upserts in payroll processing | `api/payroll/[id]/process/route.ts` | Scales linearly with employee count |\n| P0 | Missing indexes on `status`, `date` | `schema.prisma` | Full table scans on every list/count |\n| P1 | Missing AbortController on all fetches | 4 client pages | Stale data, wasted requests |\n| P1 | Sequential validation queries in leaves POST | `api/leaves/route.ts` | Doubled latency |\n| P2 | Dashboard queries uncached | `page.tsx` | Repeated DB hits on navigation |\n| P2 | Pool not tuned | `lib/prisma.ts` | Connection exhaustion under load |\n| P3 | Full refetch on single-record updates | `attendance/page.tsx` | Unnecessary re-renders |\n| P3 | Payroll totals recomputed each render | `payroll/page.tsx` | Minor CPU waste |",
+        "level": 3
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "typescript",
+        "code": "// PROBLEM: One upsert per employee = 100 round trips for 100 employees\nconst payrollItems = await Promise.all(\n  employees.map(async (emp) => {\n    return prisma.payrollItem.upsert({ ... }); // ← N individual writes\n  })\n);"
+      },
+      {
+        "language": "typescript",
+        "code": "// Separate new vs existing items\nconst existingItems = await prisma.payrollItem.findMany({\n  where: { payrollRunId: id },\n  select: { employeeId: true },\n});\nconst existingIds = new Set(existingItems.map((i) => i.employeeId));\n\nconst toCreate = employees.filter((e) => !existingIds.has(e.id));\nconst toUpdate = employees.filter((e) => existingIds.has(e.id));\n\nawait prisma.$transaction([\n  prisma.payrollItem.createMany({\n    data: toCreate.map((emp) => computeItem(id, emp)),\n    skipDuplicates: true,\n  }),\n  ...toUpdate.map((emp) =>\n    prisma.payrollItem.update({\n      where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: emp.id } },\n      data: computeItem(id, emp),\n    })\n  ),\n]);"
+      },
+      {
+        "language": "typescript",
+        "code": "// PROBLEM: awaited one after the other — needless latency\nconst employee = await prisma.employee.findFirst({ where: { id: employeeId, tenantId } });\nconst leaveType = await prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } });"
+      },
+      {
+        "language": "typescript",
+        "code": "const [employee, leaveType] = await Promise.all([\n  prisma.employee.findFirst({ where: { id: employeeId, tenantId } }),\n  prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } }),\n]);\nif (!employee) return Response.json({ error: \"Employee not found\" }, { status: 404 });\nif (!leaveType) return Response.json({ error: \"Leave type not found\" }, { status: 404 });"
+      },
+      {
+        "language": "typescript",
+        "code": "// PROBLEM: count then create = race condition + extra round trip\nconst count = await prisma.employee.count({ where: { tenantId } });\nconst employeeCode = `EMP${String(count + 1).padStart(4, \"0\")}`;"
+      },
+      {
+        "language": "typescript",
+        "code": "// Option A: raw sequence (most reliable)\nconst result = await prisma.$queryRaw<[{ nextval: bigint }]>`\n  SELECT nextval('\"EmployeeSeq_' || ${tenantId} || '\"')\n`;\n// Option B: simpler — use cuid/nanoid and skip sequential codes entirely\nimport { createId } from \"@paralleldrive/cuid2\";\nconst employeeCode = `EMP-${createId().slice(0, 6).toUpperCase()}`;"
+      },
+      {
+        "language": "prisma",
+        "code": "model Employee {\n  // ADD:\n  @@index([tenantId, status])   // payroll processing filters by tenantId + status:\"ACTIVE\"\n}\n\nmodel Attendance {\n  // ADD:\n  @@index([date])               // attendance queries filter by date constantly\n  // Note: employee.tenantId join requires a cross-table path; adding tenantId\n  // directly to Attendance would eliminate the join entirely\n}\n\nmodel LeaveRequest {\n  // ADD:\n  @@index([status])             // dashboard counts PENDING leaves\n}\n\nmodel PayrollRun {\n  // ADD:\n  @@index([tenantId, status])   // dashboard finds last COMPLETED run\n  @@index([runAt])              // orderBy runAt: \"desc\"\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "// PROBLEM: no cleanup — stale response can overwrite fresh data\nuseEffect(() => {\n  fetchRecords(date);\n}, [date]);"
+      },
+      {
+        "language": "typescript",
+        "code": "useEffect(() => {\n  const controller = new AbortController();\n  setLoading(true);\n  fetch(`/api/attendance?date=${d}`, { signal: controller.signal })\n    .then((r) => r.json())\n    .then((data) => Array.isArray(data) && setRecords(data))\n    .catch((e) => { if (e.name !== \"AbortError\") setError(\"Network error\"); })\n    .finally(() => setLoading(false));\n  return () => controller.abort();\n}, [date]);"
+      },
+      {
+        "language": "typescript",
+        "code": "const fetchRuns = useCallback(() => {\n  setLoading(true);\n  fetch(\"/api/payroll\")\n    .then((r) => r.json())\n    .then((data) => Array.isArray(data) && setRuns(data))\n    .finally(() => setLoading(false));\n}, []);"
+      },
+      {
+        "language": "typescript",
+        "code": "// Instead of refetching all records, update just the changed one:\nasync function markAttendance(employeeId: string, status: AttendanceStatus) {\n  setSaving(employeeId);\n  const res = await fetch(\"/api/attendance\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ employeeId, date, status }),\n  });\n  if (res.ok) {\n    setRecords((prev) =>\n      prev.map((r) => r.employee.id === employeeId ? { ...r, status } : r)\n    );\n  }\n  setSaving(null);\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "import { unstable_cache } from \"next/cache\";\n\nconst getDashboardStats = unstable_cache(\n  async (tenantId: string) => {\n    const today = new Date();\n    today.setHours(0, 0, 0, 0);\n    return Promise.all([\n      prisma.employee.count({ where: { tenantId, status: \"ACTIVE\" } }),\n      prisma.attendance.count({ where: { employee: { tenantId }, date: today, status: \"PRESENT\" } }),\n      prisma.leaveRequest.count({ where: { employee: { tenantId }, status: \"PENDING\" } }),\n      prisma.payrollRun.findFirst({ where: { tenantId, status: \"COMPLETED\" }, orderBy: { runAt: \"desc\" }, include: { payrollItems: { select: { netSalary: true } } } }),\n    ]);\n  },\n  [\"dashboard-stats\"],\n  { revalidate: 60, tags: [\"dashboard\"] }  // 60s TTL\n);"
+      },
+      {
+        "language": "typescript",
+        "code": "// src/app/api/employees/route.ts\nreturn Response.json(employees, {\n  headers: { \"Cache-Control\": \"private, max-age=30, stale-while-revalidate=60\" },\n});"
+      },
+      {
+        "language": "typescript",
+        "code": "// PROBLEM: defaults to pg's 10-connection pool, no tuning\nconst pool = new Pool({ connectionString: process.env.DATABASE_URL });\n\n// FIX: tune for serverless/edge workloads\nconst pool = new Pool({\n  connectionString: process.env.DATABASE_URL,\n  max: 5,          // lower for serverless to avoid exhaustion\n  idleTimeoutMillis: 10_000,\n  connectionTimeoutMillis: 2_000,\n});"
+      },
+      {
+        "language": "typescript",
+        "code": "// Runs on every render, for every run\nruns.map((run) => {\n  const total = run.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0);"
+      },
+      {
+        "language": "typescript",
+        "code": "const runTotals = useMemo(\n  () => Object.fromEntries(\n    runs.map((run) => [run.id, run.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0)])\n  ),\n  [runs]\n);\n// Usage: runTotals[run.id]"
+      },
+      {
+        "language": "typescript",
+        "code": "// Recomputed on every render\nnew Date(date + \"T00:00:00\").toLocaleDateString(...)"
+      },
+      {
+        "language": "typescript",
+        "code": "const formattedDate = useMemo(\n  () => new Date(date + \"T00:00:00\").toLocaleDateString(\"en-US\", { dateStyle: \"long\" }),\n  [date]\n);"
+      }
+    ]
   },
-  "rawOutputPreview": "I'm not able to run git commands in this session without your approval. The stop hook flagged uncommitted changes in `/home/user/TEST`.\n\nWould you like me to:\n1. Check `git status` to see what's pending (you'll need to approve the command)\n2. Stage and commit the changes once we know what they are\n3. Push to the remote branch\n\nLet me know how you'd like to proceed — or if you'd prefer to handle the commit yourself.\n",
-  "rawOutputLength": 419
+  "rawOutputPreview": "I have a complete picture of the codebase. Here's the full performance analysis:\n\n---\n\n## Performance Analysis\n\n### 1. N+1 Query Patterns\n\n**Critical: Payroll processing — N database writes per employee**\n`src/app/api/payroll/[id]/process/route.ts:35-57`\n\n```typescript\n// PROBLEM: One upsert per employee = 100 round trips for 100 employees\nconst payrollItems = await Promise.all(\n  employees.map(async (emp) => {\n    return prisma.payrollItem.upsert({ ... }); // ← N individual writes\n  })\n);\n```\n\nFix — use a transaction with `createMany` and a separate update for existing records:\n\n```typescript\n// Separate new vs existing items\nconst existingItems = await prisma.payrollItem.findMany({\n  where: { payrollRunId: id },\n  select: { employeeId: true },\n});\nconst existingIds = new Set(existingItems.map((i) => i.employeeId));\n\nconst toCreate = employees.filter((e) => !existingIds.has(e.id));\nconst toUpdate = employees.filter((e) => existingIds.has(e.id));\n\nawait prisma.$transaction([\n  prisma.payrollItem.createMany({\n    data: toCreate.map((emp) => computeItem(id, emp)),\n    skipDuplicates: true,\n  }),\n  ...toUpdate.map((emp) =>\n    prisma.payrollItem.update({\n      where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: emp.id } },\n      data: computeItem(id, emp),\n    })\n  ),\n]);\n```\n\n**Sequential validation queries that could be parallel**\n`src/app/api/leaves/route.ts:44-50`\n\n```typescript\n// PROBLEM: awaited one after the other — needless latency\nconst employee = await prisma.employee.findFirst({ where: { id: employeeId, tenantId } });\nconst leaveType = await prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } });\n```\n\nFix:\n\n```typescript\nconst [employee, leaveType] = await Promise.all([\n  prisma.employee.findFirst({ where: { id: employeeId, tenantId } }),\n  prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } }),\n]);\nif (!employee) return Response.json({ error: \"Employee not found\" }, { status: 404 });\nif (!leaveType) return Response",
+  "rawOutputLength": 9304
 }

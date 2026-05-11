@@ -8,6 +8,7 @@ import {
   CalendarCheck,
   FileText,
   DollarSign,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/attendance", label: "Attendance", icon: CalendarCheck },
   { href: "/leaves", label: "Leaves", icon: FileText },
   { href: "/payroll", label: "Payroll", icon: DollarSign },
+  { href: "/hr-agent", label: "HR AI Agent", icon: Sparkles },
 ];
 
 export function Sidebar({ tenantName }: SidebarProps) {

@@ -24,6 +24,7 @@ cat > .env.local <<EOF
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/erp_dev
 NEXTAUTH_SECRET=codespaces-dev-secret-change-in-prod
 NEXTAUTH_URL=${NEXTAUTH_URL}
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-your-anthropic-api-key-here}
 EOF
 echo ".env.local written"
 

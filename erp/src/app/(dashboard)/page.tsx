@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

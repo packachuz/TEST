@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/mm/material
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const { id } = await ctx.params;
 
     const material = await prisma.material.findFirst({ where: { id, tenantId } });
@@ -29,12 +29,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/mm/materia
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const role = (session.user as any).role as string;
+    const role = session.user.role;
     if (!["ADMIN", "MANAGER"].includes(role)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const { id } = await ctx.params;
 
     const existing = await prisma.material.findFirst({ where: { id, tenantId } });

@@ -10,7 +10,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 export default async function MMPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const [materials, openPRCount, openPOCount, recentPOs] = await Promise.all([
     prisma.material.findMany({ where: { tenantId } }),

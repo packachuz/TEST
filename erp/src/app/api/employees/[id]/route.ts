@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/employees/[
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
   const { id } = await ctx.params;
 
   const employee = await getEmployee(id, tenantId);
@@ -27,7 +27,7 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/employees/[i
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
   const { id } = await ctx.params;
 
   const existing = await getEmployee(id, tenantId);
@@ -73,7 +73,7 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/employee
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
   const { id } = await ctx.params;
 
   const existing = await getEmployee(id, tenantId);

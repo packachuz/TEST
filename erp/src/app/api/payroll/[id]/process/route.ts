@@ -1,18 +1,22 @@
 import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+const TAX_RATE = new Prisma.Decimal("0.15");
+const ZERO = new Prisma.Decimal(0);
 
 export async function POST(_req: NextRequest, ctx: RouteContext<"/api/payroll/[id]/process">) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const role = (session.user as any).role as string;
+  const role = session.user.role;
   if (role !== "ADMIN" && role !== "HR") {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
   const { id } = await ctx.params;
 
   try {
@@ -38,11 +42,11 @@ export async function POST(_req: NextRequest, ctx: RouteContext<"/api/payroll/[i
 
       const items = [] as Awaited<ReturnType<typeof tx.payrollItem.upsert>>[];
       for (const emp of employees) {
-        const baseSalary = Number(emp.baseSalary);
-        const allowances = 0;
-        const deductions = 0;
-        const tax = parseFloat((baseSalary * 0.15).toFixed(2));
-        const netSalary = parseFloat((baseSalary * 0.85).toFixed(2));
+        const baseSalary = new Prisma.Decimal(emp.baseSalary);
+        const allowances = ZERO;
+        const deductions = ZERO;
+        const tax = baseSalary.times(TAX_RATE).toDecimalPlaces(2);
+        const netSalary = baseSalary.minus(tax).plus(allowances).minus(deductions).toDecimalPlaces(2);
 
         const item = await tx.payrollItem.upsert({
           where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: emp.id } },
@@ -73,12 +77,12 @@ export async function POST(_req: NextRequest, ctx: RouteContext<"/api/payroll/[i
         },
       });
 
-      // 4. Post balanced journal entry
-      const totalNet = items.reduce((sum, item) => sum + Number(item.netSalary), 0);
-      const totalGross = items.reduce((sum, item) => sum + Number(item.baseSalary), 0);
-      const totalTax = items.reduce((sum, item) => sum + Number(item.tax), 0);
+      // 4. Post balanced journal entry (Decimal arithmetic preserves cent precision)
+      const totalNet = items.reduce((sum, item) => sum.plus(item.netSalary), ZERO);
+      const totalGross = items.reduce((sum, item) => sum.plus(item.baseSalary), ZERO);
+      const totalTax = items.reduce((sum, item) => sum.plus(item.tax), ZERO);
 
-      if (totalGross > 0) {
+      if (totalGross.greaterThan(0)) {
         const expenseAccount = await tx.gLAccount.findFirst({
           where: { tenantId, code: "6000", isActive: true },
         });
@@ -108,9 +112,9 @@ export async function POST(_req: NextRequest, ctx: RouteContext<"/api/payroll/[i
             sourceId: id,
             lines: {
               create: [
-                { glAccountId: expenseAccount.id, debit: totalGross, credit: 0, description: "Payroll expense" },
-                { glAccountId: salaryPayable.id, debit: 0, credit: totalNet, description: "Net salary payable" },
-                { glAccountId: taxPayable.id, debit: 0, credit: totalTax, description: "Tax payable" },
+                { glAccountId: expenseAccount.id, debit: totalGross, credit: ZERO, description: "Payroll expense" },
+                { glAccountId: salaryPayable.id, debit: ZERO, credit: totalNet, description: "Net salary payable" },
+                { glAccountId: taxPayable.id, debit: ZERO, credit: totalTax, description: "Tax payable" },
               ],
             },
           },

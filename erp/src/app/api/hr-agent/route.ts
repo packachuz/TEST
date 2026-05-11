@@ -288,8 +288,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const tenantId = (session.user as any).tenantId;
-    const userRole = (session.user as any).role;
+    const tenantId = session.user.tenantId;
+    const userRole = session.user.role;
 
     const systemPrompt = `You are an intelligent HR assistant for the company's HR & Payroll ERP system.
 You have access to real employee data, leave requests, attendance records, and payroll information.

@@ -7,12 +7,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/leaves/[id
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const role = (session.user as any).role as string;
+  const role = session.user.role;
   if (role !== "ADMIN" && role !== "HR") {
     return Response.json({ error: "Forbidden: only HR or ADMIN can update leave status" }, { status: 403 });
   }
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
   const { id } = await ctx.params;
 
   const body = await req.json();

@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/sd/customer
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const { id } = await ctx.params;
 
     const customer = await prisma.customer.findFirst({ where: { id, tenantId } });
@@ -32,12 +32,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/sd/custome
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const role = (session.user as any).role as string;
+    const role = session.user.role;
     if (!["ADMIN", "MANAGER"].includes(role)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const { id } = await ctx.params;
 
     const customer = await prisma.customer.findFirst({ where: { id, tenantId } });

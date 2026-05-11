@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-05-11T04:11:47.969Z",
+  "timestamp": "2026-05-11T04:26:47.974Z",
   "projectRoot": "/home/user/TEST",
   "structure": {
     "hasPackageJson": false,
@@ -7,5 +7,5 @@
     "hasClaudeConfig": true,
     "hasClaudeFlow": true
   },
-  "scannedAt": 1778472707969
+  "scannedAt": 1778473607974
 }

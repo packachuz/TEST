@@ -21,6 +21,24 @@ model Tenant {
   employees   Employee[]
   leaveTypes  LeaveType[]
   payrollRuns PayrollRun[]
+
+  // FI
+  glAccounts    GLAccount[]
+  fiscalYears   FiscalYear[]
+  journalEntries JournalEntry[]
+
+  // MM
+  materials             Material[]
+  vendors               Vendor[]
+  purchaseRequisitions  PurchaseRequisition[]
+  purchaseOrders        PurchaseOrder[]
+  goodsReceipts         GoodsReceipt[]
+
+  // SD
+  customers        Customer[]
+  salesOrders      SalesOrder[]
+  deliveries       Delivery[]
+  customerInvoices CustomerInvoice[]
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -211,5 +229,428 @@ enum PayrollStatus {
   DRAFT
   PROCESSING
   COMPLETED
+  CANCELLED
+}
+
+// ─── FI: Chart of Accounts ────────────────────────────────────────────────────
+
+model GLAccount {
+  id          String        @id @default(cuid())
+  tenantId    String
+  code        String
+  name        String
+  type        GLAccountType
+  isActive    Boolean       @default(true)
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tenant           Tenant             @relation(fields: [tenantId], references: [id])
+  journalLines     JournalEntryLine[]
+  vendors          Vendor[]
+  customers        Customer[]
+
+  @@unique([tenantId, code])
+}
+
+enum GLAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+// ─── FI: Fiscal Year ──────────────────────────────────────────────────────────
+
+model FiscalYear {
+  id        String           @id @default(cuid())
+  tenantId  String
+  year      Int
+  startDate DateTime         @db.Date
+  endDate   DateTime         @db.Date
+  status    FiscalYearStatus @default(OPEN)
+  createdAt DateTime         @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, year])
+}
+
+enum FiscalYearStatus {
+  OPEN
+  CLOSED
+}
+
+// ─── FI: Journal Entry (Universal Journal) ────────────────────────────────────
+
+model JournalEntry {
+  id          String              @id @default(cuid())
+  tenantId    String
+  number      String
+  date        DateTime            @db.Date
+  description String
+  status      JournalEntryStatus  @default(DRAFT)
+  source      JournalEntrySource  @default(MANUAL)
+  sourceId    String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  tenant Tenant             @relation(fields: [tenantId], references: [id])
+  lines  JournalEntryLine[]
+
+  @@unique([tenantId, number])
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum JournalEntrySource {
+  MANUAL
+  AP
+  AR
+  PAYROLL
+  INVENTORY
+  GOODS_ISSUE
+}
+
+model JournalEntryLine {
+  id             String   @id @default(cuid())
+  journalEntryId String
+  glAccountId    String
+  debit          Decimal  @db.Decimal(14, 2) @default(0)
+  credit         Decimal  @db.Decimal(14, 2) @default(0)
+  description    String?
+  createdAt      DateTime @default(now())
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id])
+  glAccount    GLAccount    @relation(fields: [glAccountId], references: [id])
+}
+
+// ─── MM: Material Master ──────────────────────────────────────────────────────
+
+model Material {
+  id           String       @id @default(cuid())
+  tenantId     String
+  code         String
+  name         String
+  description  String?
+  type         MaterialType @default(RAW)
+  unit         String       @default("EA")
+  standardPrice Decimal     @db.Decimal(12, 2) @default(0)
+  stockQty     Decimal      @db.Decimal(14, 3) @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  prItems        PRItem[]
+  poItems        POItem[]
+  grItems        GRItem[]
+  soItems        SOItem[]
+  deliveryItems  DeliveryItem[]
+
+  @@unique([tenantId, code])
+}
+
+enum MaterialType {
+  RAW
+  FINISHED
+  SEMIFINISHED
+  SERVICE
+  TRADING
+}
+
+// ─── MM: Vendor (Business Partner - Supplier) ─────────────────────────────────
+
+model Vendor {
+  id            String   @id @default(cuid())
+  tenantId      String
+  code          String
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  paymentTerms  String?
+  glAccountId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  glAccount      GLAccount?      @relation(fields: [glAccountId], references: [id])
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, code])
+}
+
+// ─── MM: Purchase Requisition ─────────────────────────────────────────────────
+
+model PurchaseRequisition {
+  id          String    @id @default(cuid())
+  tenantId    String
+  number      String
+  requestedBy String
+  date        DateTime  @db.Date
+  status      PRStatus  @default(DRAFT)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  items          PRItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, number])
+}
+
+enum PRStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ORDERED
+}
+
+model PRItem {
+  id             String   @id @default(cuid())
+  prId           String
+  materialId     String
+  quantity       Decimal  @db.Decimal(14, 3)
+  estimatedPrice Decimal  @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+
+  pr       PurchaseRequisition @relation(fields: [prId], references: [id])
+  material Material            @relation(fields: [materialId], references: [id])
+}
+
+// ─── MM: Purchase Order ───────────────────────────────────────────────────────
+
+model PurchaseOrder {
+  id          String    @id @default(cuid())
+  tenantId    String
+  number      String
+  vendorId    String
+  prId        String?
+  date        DateTime  @db.Date
+  status      POStatus  @default(DRAFT)
+  totalAmount Decimal   @db.Decimal(14, 2) @default(0)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenantId], references: [id])
+  vendor        Vendor               @relation(fields: [vendorId], references: [id])
+  pr            PurchaseRequisition? @relation(fields: [prId], references: [id])
+  items         POItem[]
+  goodsReceipts GoodsReceipt[]
+
+  @@unique([tenantId, number])
+}
+
+enum POStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model POItem {
+  id         String   @id @default(cuid())
+  poId       String
+  materialId String
+  quantity   Decimal  @db.Decimal(14, 3)
+  unitPrice  Decimal  @db.Decimal(12, 2)
+  totalPrice Decimal  @db.Decimal(14, 2)
+  createdAt  DateTime @default(now())
+
+  po       PurchaseOrder @relation(fields: [poId], references: [id])
+  material Material      @relation(fields: [materialId], references: [id])
+  grItems  GRItem[]
+}
+
+// ─── MM: Goods Receipt ────────────────────────────────────────────────────────
+
+model GoodsReceipt {
+  id              String    @id @default(cuid())
+  tenantId        String
+  number          String
+  poId            String
+  date            DateTime  @db.Date
+  status          GRStatus  @default(DRAFT)
+  journalEntryId  String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  po      PurchaseOrder @relation(fields: [poId], references: [id])
+  items   GRItem[]
+
+  @@unique([tenantId, number])
+}
+
+enum GRStatus {
+  DRAFT
+  CONFIRMED
+  REVERSED
+}
+
+model GRItem {
+  id               String   @id @default(cuid())
+  grId             String
+  poItemId         String
+  materialId       String
+  quantityReceived Decimal  @db.Decimal(14, 3)
+  createdAt        DateTime @default(now())
+
+  gr       GoodsReceipt @relation(fields: [grId], references: [id])
+  poItem   POItem       @relation(fields: [poItemId], references: [id])
+  material Material     @relation(fields: [materialId], references: [id])
+}
+
+// ─── SD: Customer (Business Partner - Customer) ───────────────────────────────
+
+model Customer {
+  id          String   @id @default(cuid())
+  tenantId    String
+  code        String
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  creditLimit Decimal  @db.Decimal(14, 2) @default(0)
+  glAccountId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  glAccount        GLAccount?        @relation(fields: [glAccountId], references: [id])
+  salesOrders      SalesOrder[]
+  customerInvoices CustomerInvoice[]
+
+  @@unique([tenantId, code])
+}
+
+// ─── SD: Sales Order ──────────────────────────────────────────────────────────
+
+model SalesOrder {
+  id          String          @id @default(cuid())
+  tenantId    String
+  number      String
+  customerId  String
+  date        DateTime        @db.Date
+  status      SalesOrderStatus @default(DRAFT)
+  totalAmount Decimal         @db.Decimal(14, 2) @default(0)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  items      SOItem[]
+  deliveries Delivery[]
+  invoices   CustomerInvoice[]
+
+  @@unique([tenantId, number])
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_DELIVERED
+  DELIVERED
+  BILLED
+  CANCELLED
+}
+
+model SOItem {
+  id         String   @id @default(cuid())
+  soId       String
+  materialId String
+  quantity   Decimal  @db.Decimal(14, 3)
+  unitPrice  Decimal  @db.Decimal(12, 2)
+  totalPrice Decimal  @db.Decimal(14, 2)
+  createdAt  DateTime @default(now())
+
+  so           SalesOrder   @relation(fields: [soId], references: [id])
+  material     Material     @relation(fields: [materialId], references: [id])
+  deliveryItems DeliveryItem[]
+}
+
+// ─── SD: Delivery ─────────────────────────────────────────────────────────────
+
+model Delivery {
+  id             String         @id @default(cuid())
+  tenantId       String
+  number         String
+  soId           String
+  date           DateTime       @db.Date
+  status         DeliveryStatus @default(DRAFT)
+  journalEntryId String?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id])
+  so      SalesOrder   @relation(fields: [soId], references: [id])
+  items   DeliveryItem[]
+  invoices CustomerInvoice[]
+
+  @@unique([tenantId, number])
+}
+
+enum DeliveryStatus {
+  DRAFT
+  PICKED
+  SHIPPED
+  DELIVERED
+}
+
+model DeliveryItem {
+  id         String   @id @default(cuid())
+  deliveryId String
+  soItemId   String
+  materialId String
+  quantity   Decimal  @db.Decimal(14, 3)
+  createdAt  DateTime @default(now())
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id])
+  soItem   SOItem   @relation(fields: [soItemId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+}
+
+// ─── SD: Customer Invoice ─────────────────────────────────────────────────────
+
+model CustomerInvoice {
+  id             String                @id @default(cuid())
+  tenantId       String
+  number         String
+  customerId     String
+  soId           String
+  deliveryId     String?
+  date           DateTime              @db.Date
+  dueDate        DateTime              @db.Date
+  amount         Decimal               @db.Decimal(14, 2)
+  status         CustomerInvoiceStatus @default(DRAFT)
+  journalEntryId String?
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id])
+  customer Customer   @relation(fields: [customerId], references: [id])
+  so       SalesOrder @relation(fields: [soId], references: [id])
+  delivery Delivery?  @relation(fields: [deliveryId], references: [id])
+
+  @@unique([tenantId, number])
+}
+
+enum CustomerInvoiceStatus {
+  DRAFT
+  POSTED
+  PAID
   CANCELLED
 }

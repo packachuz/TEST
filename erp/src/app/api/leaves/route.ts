@@ -7,7 +7,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const leaves = await prisma.leaveRequest.findMany({
     where: { employee: { tenantId } },
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const body = await req.json();
   const { employeeId, leaveTypeId, startDate, endDate, days, reason } = body;

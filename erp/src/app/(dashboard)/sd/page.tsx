@@ -20,7 +20,7 @@ export default async function SDPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

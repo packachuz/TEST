@@ -14,7 +14,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const user = session.user as any;
+  const user = session.user;
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">

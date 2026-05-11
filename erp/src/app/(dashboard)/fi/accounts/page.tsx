@@ -17,7 +17,7 @@ export default async function AccountsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const accounts = await prisma.gLAccount.findMany({
     where: { tenantId },

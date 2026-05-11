@@ -13,7 +13,7 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
 
     const prs = await prisma.purchaseRequisition.findMany({
       where: { tenantId },
@@ -38,12 +38,12 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const role = (session.user as any).role as string;
+    const role = session.user.role;
     if (!["ADMIN", "MANAGER"].includes(role)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const body = await req.json();
     const { requestedBy, date, notes, items } = body;
 

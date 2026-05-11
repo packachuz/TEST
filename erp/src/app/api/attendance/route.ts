@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tenantId = (session.user as any).tenantId as string;
+  const tenantId = session.user.tenantId;
 
   const body = await req.json();
   const { employeeId, date, status, checkIn, checkOut, notes } = body;

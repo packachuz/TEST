@@ -8,12 +8,12 @@ export async function POST(_req: NextRequest, ctx: RouteContext<"/api/sd/deliver
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const role = (session.user as any).role as string;
+    const role = session.user.role;
     if (!["ADMIN", "MANAGER"].includes(role)) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const { id } = await ctx.params;
 
     const delivery = await prisma.delivery.findFirst({

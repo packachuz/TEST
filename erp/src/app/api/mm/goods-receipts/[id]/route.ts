@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/mm/goods-re
     const session = await getServerSession(authOptions);
     if (!session?.user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenantId = (session.user as any).tenantId as string;
+    const tenantId = session.user.tenantId;
     const { id } = await ctx.params;
 
     const gr = await prisma.goodsReceipt.findFirst({

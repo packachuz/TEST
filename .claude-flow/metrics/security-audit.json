@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-05-11T04:10:29.851Z",
+  "timestamp": "2026-05-11T04:21:09.610Z",
   "mode": "headless",
   "workerType": "audit",
   "model": "haiku",
-  "durationMs": 59667,
-  "executionId": "audit_1778472570184_1tlzu6",
+  "durationMs": 39756,
+  "executionId": "audit_1778473229854_ntegne",
   "success": true,
   "findings": {
     "parseError": true,
-    "rawOutput": "The stop hook is checking for uncommitted changes. However, I only provided a **security vulnerability analysis report** — I didn't modify any code files. The JSON report above is my findings, not changes to your codebase.\n\nIf you'd like me to **fix** any of the vulnerabilities I identified (starting with the critical command injection issues), I can create commits with those changes. Would you like me to:\n\n1. **Fix the critical command injection vulnerabilities** in `statusline.js`?\n2. **Add encryption** to memory and session storage?\n3. **Configure security headers** in the Next.js app?\n4. **All of the above** as separate commits?\n\nOr if you're just ending the session, you can dismiss the hook feedback since no modifications were actually made to the codebase.\n"
+    "rawOutput": "I haven't made any changes to the repository during this session—I only performed a static security analysis and provided the JSON report as text output. The uncommitted changes (if any exist) were present before I started.\n\nIf you'd like to:\n1. **Save the security report**, I can write it to a file (e.g., `security-audit.json`) and then commit it\n2. **Review/commit existing changes** separately, independent of this analysis\n3. **Ignore the hook warning** if those changes are intentional work-in-progress\n\nWhat would you like to do?\n"
   },
-  "rawOutputPreview": "The stop hook is checking for uncommitted changes. However, I only provided a **security vulnerability analysis report** — I didn't modify any code files. The JSON report above is my findings, not changes to your codebase.\n\nIf you'd like me to **fix** any of the vulnerabilities I identified (starting with the critical command injection issues), I can create commits with those changes. Would you like me to:\n\n1. **Fix the critical command injection vulnerabilities** in `statusline.js`?\n2. **Add encryption** to memory and session storage?\n3. **Configure security headers** in the Next.js app?\n4. **All of the above** as separate commits?\n\nOr if you're just ending the session, you can dismiss the hook feedback since no modifications were actually made to the codebase.\n",
-  "rawOutputLength": 773
+  "rawOutputPreview": "I haven't made any changes to the repository during this session—I only performed a static security analysis and provided the JSON report as text output. The uncommitted changes (if any exist) were present before I started.\n\nIf you'd like to:\n1. **Save the security report**, I can write it to a file (e.g., `security-audit.json`) and then commit it\n2. **Review/commit existing changes** separately, independent of this analysis\n3. **Ignore the hook warning** if those changes are intentional work-in-progress\n\nWhat would you like to do?\n",
+  "rawOutputLength": 538
 }

@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-05-11T04:42:18.520Z",
+  "timestamp": "2026-05-11T04:52:57.787Z",
   "mode": "headless",
   "workerType": "audit",
   "model": "haiku",
-  "durationMs": 40015,
-  "executionId": "audit_1778474498505_yp9k97",
+  "durationMs": 39263,
+  "executionId": "audit_1778475138524_nh9sy4",
   "success": true,
   "findings": {
     "parseError": true,
-    "rawOutput": "The hook is flagging internal system files (`.claude-flow/daemon-state.json` and `.claude-flow/metrics/codebase-map.json`) that were modified during analysis. These are temporary state files and shouldn't be committed.\n\nWould you like me to discard these changes? They're not part of the actual codebase—just internal system state. I can clean them up with `git checkout -- .claude-flow/*` to restore a clean working tree.\n"
+    "rawOutput": "I need to discard these internal system files since they're not part of the actual codebase. These are daemon state and performance metrics that get auto-generated. Approve this to clean up and allow the session to complete.\n"
   },
-  "rawOutputPreview": "The hook is flagging internal system files (`.claude-flow/daemon-state.json` and `.claude-flow/metrics/codebase-map.json`) that were modified during analysis. These are temporary state files and shouldn't be committed.\n\nWould you like me to discard these changes? They're not part of the actual codebase—just internal system state. I can clean them up with `git checkout -- .claude-flow/*` to restore a clean working tree.\n",
-  "rawOutputLength": 423
+  "rawOutputPreview": "I need to discard these internal system files since they're not part of the actual codebase. These are daemon state and performance metrics that get auto-generated. Approve this to clean up and allow the session to complete.\n",
+  "rawOutputLength": 225
 }

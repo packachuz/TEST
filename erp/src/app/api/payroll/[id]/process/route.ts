@@ -69,5 +69,36 @@ export async function POST(_req: NextRequest, ctx: RouteContext<"/api/payroll/[i
     },
   });
 
+  // FI integration: post payroll expense to Universal Journal
+  const totalNet = payrollItems.reduce((sum, item) => sum + Number(item.netSalary), 0);
+  const totalGross = payrollItems.reduce((sum, item) => sum + Number(item.baseSalary), 0);
+  if (totalGross > 0) {
+    const [expenseAccount, liabilityAccount] = await Promise.all([
+      prisma.gLAccount.findFirst({ where: { tenantId, code: "6000", isActive: true } }),
+      prisma.gLAccount.findFirst({ where: { tenantId, code: "2200", isActive: true } }),
+    ]);
+    if (expenseAccount && liabilityAccount) {
+      const count = await prisma.journalEntry.count({ where: { tenantId } });
+      const jeNumber = `JE-PAY-${payrollRun.period.replace(/[^0-9]/g, "")}-${String(count + 1).padStart(4, "0")}`;
+      await prisma.journalEntry.create({
+        data: {
+          tenantId,
+          number: jeNumber,
+          date: new Date(),
+          description: `Payroll posting: ${payrollRun.period}`,
+          status: "POSTED",
+          source: "PAYROLL",
+          sourceId: id,
+          lines: {
+            create: [
+              { glAccountId: expenseAccount.id, debit: totalGross, credit: 0, description: "Payroll expense" },
+              { glAccountId: liabilityAccount.id, debit: 0, credit: totalNet, description: "Net salary payable" },
+            ],
+          },
+        },
+      });
+    }
+  }
+
   return Response.json(completed);
 }

@@ -1,15 +1,20 @@
 {
-  "timestamp": "2026-05-11T04:53:16.402Z",
+  "timestamp": "2026-05-11T05:15:52.794Z",
   "mode": "headless",
   "workerType": "testgaps",
   "model": "sonnet",
-  "durationMs": 156834,
-  "executionId": "testgaps_1778475039568_0nkn6n",
+  "durationMs": 156385,
+  "executionId": "testgaps_1778476396409_7egwmg",
   "success": true,
   "findings": {
     "sections": [],
-    "codeBlocks": []
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "cd /home/user/TEST\ngit status          # see what's uncommitted\ngit add -p          # selectively stage what you want\ngit commit -m \"your message\"\ngit push"
+      }
+    ]
   },
-  "rawOutputPreview": "The hook is requesting a commit, but the only changed files are auto-generated `.claude-flow` internal files (`daemon-state.json`, `performance.json`, `security-audit.json`) — not application code. I need your approval to stage and commit them.\n\nThese files were modified automatically by the claude-flow daemon during this session. They contain no secrets or credentials. Would you like me to proceed with committing them?\n",
-  "rawOutputLength": 424
+  "rawOutputPreview": "I don't have permission to run git commands. The stop hook flagged uncommitted changes, but I haven't made any file changes during this session — I only read files for the analysis. The changes it detected likely pre-existed before our conversation.\n\nYou can resolve the hook warning by committing any pre-existing changes yourself:\n\n```bash\ncd /home/user/TEST\ngit status          # see what's uncommitted\ngit add -p          # selectively stage what you want\ngit commit -m \"your message\"\ngit push\n```\n\nIf you want me to commit the changes, please approve the git permission prompt and I'll handle it.\n",
+  "rawOutputLength": 602
 }

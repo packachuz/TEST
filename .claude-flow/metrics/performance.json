@@ -1,88 +1,20 @@
 {
-  "timestamp": "2026-05-11T04:51:25.812Z",
+  "timestamp": "2026-05-11T05:08:09.177Z",
   "mode": "headless",
   "workerType": "optimize",
   "model": "sonnet",
-  "durationMs": 84341,
-  "executionId": "optimize_1778475001471_ba7lt6",
+  "durationMs": 103358,
+  "executionId": "optimize_1778475985819_zngua9",
   "success": true,
   "findings": {
-    "sections": [
-      {
-        "title": "Performance Analysis",
-        "content": "\n",
-        "level": 2
-      },
-      {
-        "title": "1. N+1 Query Patterns",
-        "content": "\n**Payroll process: N upserts in a loop** — `src/app/api/payroll/[id]/process/route.ts:41-57`\n\nThe worst offender. Each employee triggers a separate `upsert`, meaning N+1 database roundtrips for a tenant with N employees. The pool can be saturated with large teams.\n\n```ts\n// Current: N individual transactions\nconst payrollItems = await Promise.all(\n  employees.map(async (emp) =>\n    prisma.payrollItem.upsert({ ... }) // 1 query per employee\n  )\n);\n\n// Better: split into batch create + batch update\nconst existingIds = new Set(\n  (await prisma.payrollItem.findMany({\n    where: { payrollRunId: id },\n    select: { employeeId: true },\n  })).map((r) => r.employeeId)\n);\n\nconst toCreate = employees.filter((e) => !existingIds.has(e.id));\nconst toUpdate = employees.filter((e) => existingIds.has(e.id));\n\nawait prisma.$transaction([\n  prisma.payrollItem.createMany({ data: toCreate.map(computeItem) }),\n  ...toUpdate.map((e) =>\n    prisma.payrollItem.update({ where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: e.id } }, data: computeItem(e) })\n  ),\n]);\n```\n\n**Employee code generation: count + create race condition** — `src/app/api/employees/route.ts:44-46`\n\nTwo concurrent POST requests can read the same count and produce duplicate codes. Use a DB sequence or move the code to a `GENERATED ALWAYS` column.\n\n```ts\n// Current — racy\nconst count = await prisma.employee.count({ where: { tenantId } });\nconst employeeCode = `EMP${String(count + 1).padStart(4, \"0\")}`;\n\n// Better — atomic, no extra query needed\n// Add a DB sequence in your migration:\n// CREATE SEQUENCE emp_code_seq;\n// Then in create:\nconst employeeCode = await prisma.$queryRaw<[{ nextval: bigint }]>`\n  SELECT nextval('emp_code_seq')`.then((r) => `EMP${String(r[0].nextval).padStart(4, \"0\")}`);\n```\n\n**Leaves POST: sequential tenant-ownership checks** — `src/app/api/leaves/route.ts:39-44`\n\nTwo queries run one after the other when they could be parallel:\n\n```ts\n// Current — sequential\nconst employee = await prisma.employee.findFirst(...);\nconst leaveType = await prisma.leaveType.findFirst(...);\n\n// Better — parallel\nconst [employee, leaveType] = await Promise.all([\n  prisma.employee.findFirst({ where: { id: employeeId, tenantId } }),\n  prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } }),\n]);\n```\n\n---\n\n",
-        "level": 3
-      },
-      {
-        "title": "2. Unnecessary Re-renders",
-        "content": "\n**`fetchRuns` / `fetchLeaves` / `fetchRecords` recreated every render** — `payroll/page.tsx:42`, `leaves/page.tsx:37`, `attendance/page.tsx:37`\n\nThese functions are declared inside the component body without `useCallback`, so a new function reference is created on every render. Not critical now, but any child that receives them as a prop would re-render needlessly.\n\n```tsx\n// Current\nconst fetchRuns = () => { ... };\n\n// Better\nconst fetchRuns = useCallback(() => { ... }, []);\n```\n\n**`handleTerminate` closure leak** — `employees/page.tsx:48`\n\nSame issue — also captures `setEmployees` which is stable, but the closure itself is unstabilized.\n\n**`total` computed inline in render** — `payroll/page.tsx:97`\n\n```tsx\n// Current — re-computed every render for every run\nconst total = run.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0);\n\n// Better — precompute when data arrives\nconst runsWithTotals = useMemo(\n  () => runs.map((r) => ({ ...r, total: r.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0) })),\n  [runs]\n);\n```\n\n---\n\n",
-        "level": 3
-      },
-      {
-        "title": "3. Caching Opportunities",
-        "content": "\n**Dashboard server queries run on every navigation** — `src/app/(dashboard)/page.tsx:17-34`\n\nAll four queries hit the DB on every page visit. These stats are stale-safe for 30–60 seconds.\n\n```ts\nimport { unstable_cache } from \"next/cache\";\n\nconst getDashboardStats = unstable_cache(\n  async (tenantId: string) => {\n    const [totalEmployees, presentToday, pendingLeaves, lastPayroll] = await Promise.all([...]);\n    return { totalEmployees, presentToday, pendingLeaves, lastPayroll };\n  },\n  [\"dashboard-stats\"],\n  { revalidate: 60, tags: [\"dashboard\"] }\n);\n```\n\nThen invalidate the `\"dashboard\"` tag on attendance/leave mutations.\n\n**Departments list is never cached** — `src/app/api/departments/route.ts`\n\nDepartments change rarely. The employee creation form fetches them every time. Add `Cache-Control: max-age=300` or use `unstable_cache` with a long TTL.\n\n**`getServerSession` repeated in every route** — every API file\n\nEach route calls `getServerSession(authOptions)` independently. NextAuth does cache the session per request in Next.js, but wrapping in a helper keeps the pattern consistent and makes future caching easier:\n\n```ts\n// src/lib/session.ts\nimport { cache } from \"react\";\nexport const getSession = cache(() => getServerSession(authOptions));\n```\n\n---\n\n",
-        "level": 3
-      },
-      {
-        "title": "4. Memory Leaks",
-        "content": "\n**No `AbortController` on fetch in `useEffect`** — `employees/page.tsx:37-46`, `leaves/page.tsx:45-47`, `attendance/page.tsx:45-47`, `payroll/page.tsx:50-53`\n\nIf the user navigates away before the fetch completes, the `.then()` callbacks attempt to call `setState` on an unmounted component. In React 18 this is a warning, not a hard error, but it wastes work and can mask bugs.\n\n```tsx\nuseEffect(() => {\n  const controller = new AbortController();\n  fetch(\"/api/employees\", { signal: controller.signal })\n    .then((r) => r.json())\n    .then((data) => { if (Array.isArray(data)) setEmployees(data); })\n    .catch((e) => { if (e.name !== \"AbortError\") setError(\"Network error\"); })\n    .finally(() => setLoading(false));\n  return () => controller.abort();\n}, []);\n```\n\nSame pattern needed in `fetchRecords` (attendance) and `fetchRuns`/`fetchLeaves` — though the refetch-after-mutation paths need the controller threaded through or scoped locally.\n\n---\n\n",
-        "level": 3
-      },
-      {
-        "title": "5. Redundant Computations",
-        "content": "\n**Dashboard `lastPayrollTotal` could be a DB aggregate** — `src/app/(dashboard)/page.tsx:36-38`\n\nYou're fetching all payslip `netSalary` values into memory to sum them in JS. Use Prisma's aggregate instead:\n\n```ts\n// Current — fetches all items into memory\ninclude: { payrollItems: { select: { netSalary: true } } }\n// then JS reduce...\n\n// Better — sum in the DB\nprisma.payrollRun.findFirst({\n  where: { tenantId, status: \"COMPLETED\" },\n  orderBy: { runAt: \"desc\" },\n  include: {\n    _count: false,\n    payrollItems: { select: { _count: true } }, // or\n  },\n});\n// OR use a separate aggregate query:\nprisma.payrollItem.aggregate({\n  where: { payrollRun: { tenantId, status: \"COMPLETED\", runAt: { not: null } } },\n  _sum: { netSalary: true },\n  // + subquery for latest run period\n});\n```\n\n**`statusVariant` functions duplicated across 4 components**\n\n`employees/page.tsx:25`, `payroll/page.tsx:28`, `leaves/page.tsx:22`, `attendance/page.tsx:23` all define similar functions locally. No runtime cost, but extract to `src/lib/utils.ts` to eliminate the duplication maintenance risk.\n\n---\n\n",
-        "level": 3
-      },
-      {
-        "title": "Priority Summary",
-        "content": "| Issue | Impact | Effort |\n|---|---|---|\n| N payroll upserts → batch | High (blocks DB pool at scale) | Medium |\n| Missing AbortController | Medium (memory leak on nav) | Low |\n| Dashboard caching | Medium (avoids 4 DB hits per visit) | Low |\n| Leaves parallel ownership checks | Medium | Low |\n| `useMemo` for payroll totals | Low (client-side only) | Low |\n| Employee code race condition | High (data integrity) | Medium |\n| `useCallback` for fetch helpers | Low | Low |",
-        "level": 3
-      }
-    ],
+    "sections": [],
     "codeBlocks": [
       {
-        "language": "ts",
-        "code": "// Current: N individual transactions\nconst payrollItems = await Promise.all(\n  employees.map(async (emp) =>\n    prisma.payrollItem.upsert({ ... }) // 1 query per employee\n  )\n);\n\n// Better: split into batch create + batch update\nconst existingIds = new Set(\n  (await prisma.payrollItem.findMany({\n    where: { payrollRunId: id },\n    select: { employeeId: true },\n  })).map((r) => r.employeeId)\n);\n\nconst toCreate = employees.filter((e) => !existingIds.has(e.id));\nconst toUpdate = employees.filter((e) => existingIds.has(e.id));\n\nawait prisma.$transaction([\n  prisma.payrollItem.createMany({ data: toCreate.map(computeItem) }),\n  ...toUpdate.map((e) =>\n    prisma.payrollItem.update({ where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: e.id } }, data: computeItem(e) })\n  ),\n]);"
-      },
-      {
-        "language": "ts",
-        "code": "// Current — racy\nconst count = await prisma.employee.count({ where: { tenantId } });\nconst employeeCode = `EMP${String(count + 1).padStart(4, \"0\")}`;\n\n// Better — atomic, no extra query needed\n// Add a DB sequence in your migration:\n// CREATE SEQUENCE emp_code_seq;\n// Then in create:\nconst employeeCode = await prisma.$queryRaw<[{ nextval: bigint }]>`\n  SELECT nextval('emp_code_seq')`.then((r) => `EMP${String(r[0].nextval).padStart(4, \"0\")}`);"
-      },
-      {
-        "language": "ts",
-        "code": "// Current — sequential\nconst employee = await prisma.employee.findFirst(...);\nconst leaveType = await prisma.leaveType.findFirst(...);\n\n// Better — parallel\nconst [employee, leaveType] = await Promise.all([\n  prisma.employee.findFirst({ where: { id: employeeId, tenantId } }),\n  prisma.leaveType.findFirst({ where: { id: leaveTypeId, tenantId } }),\n]);"
-      },
-      {
-        "language": "tsx",
-        "code": "// Current\nconst fetchRuns = () => { ... };\n\n// Better\nconst fetchRuns = useCallback(() => { ... }, []);"
-      },
-      {
-        "language": "tsx",
-        "code": "// Current — re-computed every render for every run\nconst total = run.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0);\n\n// Better — precompute when data arrives\nconst runsWithTotals = useMemo(\n  () => runs.map((r) => ({ ...r, total: r.payrollItems.reduce((s, i) => s + Number(i.netSalary), 0) })),\n  [runs]\n);"
-      },
-      {
-        "language": "ts",
-        "code": "import { unstable_cache } from \"next/cache\";\n\nconst getDashboardStats = unstable_cache(\n  async (tenantId: string) => {\n    const [totalEmployees, presentToday, pendingLeaves, lastPayroll] = await Promise.all([...]);\n    return { totalEmployees, presentToday, pendingLeaves, lastPayroll };\n  },\n  [\"dashboard-stats\"],\n  { revalidate: 60, tags: [\"dashboard\"] }\n);"
-      },
-      {
-        "language": "ts",
-        "code": "// src/lib/session.ts\nimport { cache } from \"react\";\nexport const getSession = cache(() => getServerSession(authOptions));"
-      },
-      {
-        "language": "tsx",
-        "code": "useEffect(() => {\n  const controller = new AbortController();\n  fetch(\"/api/employees\", { signal: controller.signal })\n    .then((r) => r.json())\n    .then((data) => { if (Array.isArray(data)) setEmployees(data); })\n    .catch((e) => { if (e.name !== \"AbortError\") setError(\"Network error\"); })\n    .finally(() => setLoading(false));\n  return () => controller.abort();\n}, []);"
-      },
-      {
-        "language": "ts",
-        "code": "// Current — fetches all items into memory\ninclude: { payrollItems: { select: { netSalary: true } } }\n// then JS reduce...\n\n// Better — sum in the DB\nprisma.payrollRun.findFirst({\n  where: { tenantId, status: \"COMPLETED\" },\n  orderBy: { runAt: \"desc\" },\n  include: {\n    _count: false,\n    payrollItems: { select: { _count: true } }, // or\n  },\n});\n// OR use a separate aggregate query:\nprisma.payrollItem.aggregate({\n  where: { payrollRun: { tenantId, status: \"COMPLETED\", runAt: { not: null } } },\n  _sum: { netSalary: true },\n  // + subquery for latest run period\n});"
+        "language": "bash",
+        "code": "git -C /home/user/TEST status        # see what's uncommitted\ngit -C /home/user/TEST add -p        # stage selectively\ngit -C /home/user/TEST commit -m \"your message\"\ngit -C /home/user/TEST push"
       }
     ]
   },
-  "rawOutputPreview": "Now I have a thorough picture of the entire codebase. Here's the performance analysis:\n\n---\n\n## Performance Analysis\n\n### 1. N+1 Query Patterns\n\n**Payroll process: N upserts in a loop** — `src/app/api/payroll/[id]/process/route.ts:41-57`\n\nThe worst offender. Each employee triggers a separate `upsert`, meaning N+1 database roundtrips for a tenant with N employees. The pool can be saturated with large teams.\n\n```ts\n// Current: N individual transactions\nconst payrollItems = await Promise.all(\n  employees.map(async (emp) =>\n    prisma.payrollItem.upsert({ ... }) // 1 query per employee\n  )\n);\n\n// Better: split into batch create + batch update\nconst existingIds = new Set(\n  (await prisma.payrollItem.findMany({\n    where: { payrollRunId: id },\n    select: { employeeId: true },\n  })).map((r) => r.employeeId)\n);\n\nconst toCreate = employees.filter((e) => !existingIds.has(e.id));\nconst toUpdate = employees.filter((e) => existingIds.has(e.id));\n\nawait prisma.$transaction([\n  prisma.payrollItem.createMany({ data: toCreate.map(computeItem) }),\n  ...toUpdate.map((e) =>\n    prisma.payrollItem.update({ where: { payrollRunId_employeeId: { payrollRunId: id, employeeId: e.id } }, data: computeItem(e) })\n  ),\n]);\n```\n\n**Employee code generation: count + create race condition** — `src/app/api/employees/route.ts:44-46`\n\nTwo concurrent POST requests can read the same count and produce duplicate codes. Use a DB sequence or move the code to a `GENERATED ALWAYS` column.\n\n```ts\n// Current — racy\nconst count = await prisma.employee.count({ where: { tenantId } });\nconst employeeCode = `EMP${String(count + 1).padStart(4, \"0\")}`;\n\n// Better — atomic, no extra query needed\n// Add a DB sequence in your migration:\n// CREATE SEQUENCE emp_code_seq;\n// Then in create:\nconst employeeCode = await prisma.$queryRaw<[{ nextval: bigint }]>`\n  SELECT nextval('emp_code_seq')`.then((r) => `EMP${String(r[0].nextval).padStart(4, \"0\")}`);\n```\n\n**Leaves POST: sequential tenant-ownership checks** — `src/app/api/leav",
-  "rawOutputLength": 7430
+  "rawOutputPreview": "I don't have git permissions approved in this session. The stop hook is flagging uncommitted changes, but I haven't made any file edits — I only read files to produce the analysis above.\n\nThe changes pre-exist from before this session. To resolve the hook warning, you can run these yourself:\n\n```bash\ngit -C /home/user/TEST status        # see what's uncommitted\ngit -C /home/user/TEST add -p        # stage selectively\ngit -C /home/user/TEST commit -m \"your message\"\ngit -C /home/user/TEST push\n```\n\nIf you'd like me to handle the commit and push, please approve the git tool calls and let me know what commit message to use.\n",
+  "rawOutputLength": 628
 }

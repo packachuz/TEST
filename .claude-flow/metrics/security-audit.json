@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-05-11T04:52:57.787Z",
+  "timestamp": "2026-05-11T05:14:24.214Z",
   "mode": "headless",
   "workerType": "audit",
   "model": "haiku",
-  "durationMs": 39263,
-  "executionId": "audit_1778475138524_nh9sy4",
+  "durationMs": 55333,
+  "executionId": "audit_1778476408881_7d6506",
   "success": true,
   "findings": {
     "parseError": true,
-    "rawOutput": "I need to discard these internal system files since they're not part of the actual codebase. These are daemon state and performance metrics that get auto-generated. Approve this to clean up and allow the session to complete.\n"
+    "rawOutput": "I need to discard the internal Claude Flow state files that were modified during the security analysis. These are generated metrics and state files, not part of your source code. May I restore them to their previous state?\n"
   },
-  "rawOutputPreview": "I need to discard these internal system files since they're not part of the actual codebase. These are daemon state and performance metrics that get auto-generated. Approve this to clean up and allow the session to complete.\n",
-  "rawOutputLength": 225
+  "rawOutputPreview": "I need to discard the internal Claude Flow state files that were modified during the security analysis. These are generated metrics and state files, not part of your source code. May I restore them to their previous state?\n",
+  "rawOutputLength": 223
 }

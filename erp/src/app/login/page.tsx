@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
@@ -29,16 +29,17 @@ export default function LoginPage() {
       password,
       tenantSlug,
       redirect: false,
+      callbackUrl,
     });
 
     setLoading(false);
 
-    if (result?.error) {
-      setError("Invalid credentials. Please check your email, password, and company slug.");
+    if (!result || result.error) {
+      setError("Invalid credentials. Please check your company slug, email, and password.");
       return;
     }
 
-    router.push(callbackUrl);
+    router.push(result.url ?? "/");
     router.refresh();
   }
 
@@ -88,11 +89,20 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-gray-400">
-            Demo: slug=<strong>demo</strong>, email=<strong>admin@demo.com</strong>, password=<strong>demo1234</strong>
-          </p>
+          <div className="mt-4 rounded-md bg-blue-50 p-3 text-xs text-blue-700">
+            <p className="font-medium">Demo credentials:</p>
+            <p>Slug: <strong>demo</strong> · Email: <strong>admin@demo.com</strong> · Password: <strong>demo1234</strong></p>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

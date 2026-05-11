@@ -6,6 +6,19 @@ import { prisma } from "./prisma";
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  // Trust forwarded headers from Codespaces proxy
+  useSecureCookies: process.env.NEXTAUTH_URL?.startsWith("https://") ?? false,
+  cookies: {
+    sessionToken: {
+      name: `${process.env.NEXTAUTH_URL?.startsWith("https://") ? "__Secure-" : ""}next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NEXTAUTH_URL?.startsWith("https://") ?? false,
+      },
+    },
+  },
   providers: [
     CredentialsProvider({
       name: "credentials",

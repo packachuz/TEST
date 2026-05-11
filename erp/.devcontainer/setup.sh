@@ -4,12 +4,18 @@ set -e
 echo "=== Installing dependencies ==="
 npm install
 
+echo "=== Starting PostgreSQL ==="
+sudo service postgresql start 2>/dev/null || true
+
 echo "=== Waiting for PostgreSQL ==="
-until pg_isready -U postgres -q; do sleep 1; done
+until sudo -u postgres psql -c "SELECT 1" &>/dev/null; do
+  echo "  waiting..."
+  sleep 2
+done
 
 echo "=== Creating database ==="
-psql -U postgres -c "CREATE DATABASE erp_dev;" 2>/dev/null || echo "Database already exists"
-psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';" 2>/dev/null || true
+sudo -u postgres psql -c "CREATE DATABASE erp_dev;" 2>/dev/null || echo "Database already exists"
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';" 2>/dev/null || true
 
 echo "=== Configuring environment ==="
 # Detect Codespaces URL and set NEXTAUTH_URL accordingly

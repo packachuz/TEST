@@ -1,15 +1,70 @@
 {
-  "timestamp": "2026-05-11T04:21:09.610Z",
+  "timestamp": "2026-05-11T04:31:38.500Z",
   "mode": "headless",
   "workerType": "audit",
   "model": "haiku",
-  "durationMs": 39756,
-  "executionId": "audit_1778473229854_ntegne",
+  "durationMs": 28883,
+  "executionId": "audit_1778473869617_pfgtg8",
   "success": true,
   "findings": {
-    "parseError": true,
-    "rawOutput": "I haven't made any changes to the repository during this session—I only performed a static security analysis and provided the JSON report as text output. The uncommitted changes (if any exist) were present before I started.\n\nIf you'd like to:\n1. **Save the security report**, I can write it to a file (e.g., `security-audit.json`) and then commit it\n2. **Review/commit existing changes** separately, independent of this analysis\n3. **Ignore the hook warning** if those changes are intentional work-in-progress\n\nWhat would you like to do?\n"
+    "vulnerabilities": [
+      {
+        "severity": "high",
+        "file": "erp/prisma/seed.ts",
+        "line": 14,
+        "description": "Hardcoded demo password 'demo1234' visible in seed script. If seed is run in production, accounts with known credentials are created. This poses a critical authentication bypass risk."
+      },
+      {
+        "severity": "high",
+        "file": "erp/prisma/seed.ts",
+        "line": 25,
+        "description": "Admin user created with known credentials (admin@demo.com / demo1234) during seeding. Direct threat to production systems if not properly scoped to dev-only environments."
+      },
+      {
+        "severity": "medium",
+        "file": "erp/src/app/api/employees/[id]/route.ts",
+        "line": 8,
+        "description": "RouteContext type is used but not defined/imported. Type safety issue could lead to runtime errors and unexpected behavior in route handling."
+      },
+      {
+        "severity": "medium",
+        "file": "erp/src/app/api/leaves/[id]/route.ts",
+        "line": 6,
+        "description": "RouteContext type undefined. Potential type safety gap in dynamic route parameter handling."
+      },
+      {
+        "severity": "medium",
+        "file": "erp/src/app/api/payroll/[id]/process/route.ts",
+        "line": 8,
+        "description": "RouteContext type undefined. Same type safety issue affects route parameter parsing."
+      },
+      {
+        "severity": "low",
+        "file": "erp/src/app/api/payroll/route.ts",
+        "line": 32,
+        "description": "Period validation is minimal - accepts any string format. While not directly exploitable (not used in queries), this should have format validation (e.g., YYYY-MM)."
+      },
+      {
+        "severity": "low",
+        "file": "erp/.claude/helpers/memory.js",
+        "line": 20,
+        "description": "No sanitization of memory keys that could theoretically be used in file paths. Minimal risk but should validate keys against path traversal patterns."
+      }
+    ],
+    "riskScore": 62,
+    "recommendations": [
+      "CRITICAL: Remove hardcoded credentials from seed.ts. Use environment variables or a separate dev-only seed config. Implement checks to prevent seed from running in production.",
+      "FIX: Import and properly define RouteContext type in all dynamic API routes ([id]/route.ts files). This ensures type safety.",
+      "ADD: Validate period format in payroll route with regex (^\\d{4}-\\d{2}$) to enforce YYYY-MM format.",
+      "ADD: Implement seed.ts guard: wrap all seeding code in `if (process.env.NODE_ENV !== 'production')` or use a separate .dev.seed.ts file.",
+      "GOOD: Codebase properly uses Prisma ORM (parameterized queries) - SQL injection risk is low across API routes.",
+      "GOOD: All endpoints verify authentication via `getServerSession()` and enforce tenant isolation.",
+      "GOOD: Role-based authorization is correctly implemented (ADMIN/HR checks in payroll, leave, dept endpoints).",
+      "GOOD: Uses bcrypt for password hashing, JWT sessions are properly configured.",
+      "ADD: Add input validation on date fields (attendance, leaves) to ensure valid ISO date formats.",
+      "ADD: Implement rate limiting on auth and API endpoints to prevent brute force attacks."
+    ]
   },
-  "rawOutputPreview": "I haven't made any changes to the repository during this session—I only performed a static security analysis and provided the JSON report as text output. The uncommitted changes (if any exist) were present before I started.\n\nIf you'd like to:\n1. **Save the security report**, I can write it to a file (e.g., `security-audit.json`) and then commit it\n2. **Review/commit existing changes** separately, independent of this analysis\n3. **Ignore the hook warning** if those changes are intentional work-in-progress\n\nWhat would you like to do?\n",
-  "rawOutputLength": 538
+  "rawOutputPreview": "Based on my analysis of the codebase, here's the security vulnerability report:\n\n```json\n{\n  \"vulnerabilities\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \"erp/prisma/seed.ts\",\n      \"line\": 14,\n      \"description\": \"Hardcoded demo password 'demo1234' visible in seed script. If seed is run in production, accounts with known credentials are created. This poses a critical authentication bypass risk.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"file\": \"erp/prisma/seed.ts\",\n      \"line\": 25,\n      \"description\": \"Admin user created with known credentials (admin@demo.com / demo1234) during seeding. Direct threat to production systems if not properly scoped to dev-only environments.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"erp/src/app/api/employees/[id]/route.ts\",\n      \"line\": 8,\n      \"description\": \"RouteContext type is used but not defined/imported. Type safety issue could lead to runtime errors and unexpected behavior in route handling.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"erp/src/app/api/leaves/[id]/route.ts\",\n      \"line\": 6,\n      \"description\": \"RouteContext type undefined. Potential type safety gap in dynamic route parameter handling.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \"erp/src/app/api/payroll/[id]/process/route.ts\",\n      \"line\": 8,\n      \"description\": \"RouteContext type undefined. Same type safety issue affects route parameter parsing.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"erp/src/app/api/payroll/route.ts\",\n      \"line\": 32,\n      \"description\": \"Period validation is minimal - accepts any string format. While not directly exploitable (not used in queries), this should have format validation (e.g., YYYY-MM).\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \"erp/.claude/helpers/memory.js\",\n      \"line\": 20,\n      \"description\": \"No sanitization of memory keys that could theoretically be used in file paths. Minimal risk but should validate keys against path traversal patterns.\"\n ",
+  "rawOutputLength": 3734
 }

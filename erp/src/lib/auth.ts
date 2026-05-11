@@ -28,30 +28,47 @@ export const authOptions: NextAuthOptions = {
         tenantSlug: { label: "Company", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password || !credentials?.tenantSlug) return null;
+        if (!credentials?.email || !credentials?.password || !credentials?.tenantSlug) {
+          console.error("[auth] Missing credentials fields");
+          return null;
+        }
 
-        const tenant = await prisma.tenant.findUnique({
-          where: { slug: credentials.tenantSlug },
-        });
-        if (!tenant) return null;
+        try {
+          const tenant = await prisma.tenant.findUnique({
+            where: { slug: credentials.tenantSlug },
+          });
+          if (!tenant) {
+            console.error(`[auth] Tenant not found: "${credentials.tenantSlug}"`);
+            return null;
+          }
 
-        const user = await prisma.user.findUnique({
-          where: { tenantId_email: { tenantId: tenant.id, email: credentials.email } },
-        });
-        if (!user) return null;
+          const user = await prisma.user.findUnique({
+            where: { tenantId_email: { tenantId: tenant.id, email: credentials.email } },
+          });
+          if (!user) {
+            console.error(`[auth] User not found: "${credentials.email}" in tenant "${credentials.tenantSlug}"`);
+            return null;
+          }
 
-        const valid = await bcrypt.compare(credentials.password, user.hashedPassword);
-        if (!valid) return null;
+          const valid = await bcrypt.compare(credentials.password, user.hashedPassword);
+          if (!valid) {
+            console.error(`[auth] Invalid password for "${credentials.email}"`);
+            return null;
+          }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          tenantId: user.tenantId,
-          tenantSlug: tenant.slug,
-          tenantName: tenant.name,
-        };
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            tenantId: user.tenantId,
+            tenantSlug: tenant.slug,
+            tenantName: tenant.name,
+          };
+        } catch (err) {
+          console.error("[auth] Database error during authorize:", err);
+          return null;
+        }
       },
     }),
   ],

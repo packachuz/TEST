@@ -140,6 +140,7 @@ model Attendance {
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@unique([employeeId, date])
+  @@index([employeeId, date])
 }
 
 enum AttendanceStatus {
@@ -182,6 +183,10 @@ model LeaveRequest {
 
   employee  Employee  @relation(fields: [employeeId], references: [id])
   leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([employeeId])
+  @@index([leaveTypeId])
+  @@index([status])
 }
 
 enum LeaveStatus {
@@ -223,6 +228,8 @@ model PayrollItem {
   employee   Employee   @relation(fields: [employeeId], references: [id])
 
   @@unique([payrollRunId, employeeId])
+  @@index([payrollRunId])
+  @@index([employeeId])
 }
 
 enum PayrollStatus {
@@ -300,6 +307,9 @@ model JournalEntry {
   lines  JournalEntryLine[]
 
   @@unique([tenantId, number])
+  @@unique([tenantId, source, sourceId], name: "unique_source_posting")
+  @@index([tenantId, status])
+  @@index([tenantId, date])
 }
 
 enum JournalEntryStatus {
@@ -328,6 +338,9 @@ model JournalEntryLine {
 
   journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id])
   glAccount    GLAccount    @relation(fields: [glAccountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([glAccountId])
 }
 
 // ─── MM: Material Master ──────────────────────────────────────────────────────
@@ -383,6 +396,7 @@ model Vendor {
   purchaseOrders PurchaseOrder[]
 
   @@unique([tenantId, code])
+  @@index([glAccountId])
 }
 
 // ─── MM: Purchase Requisition ─────────────────────────────────────────────────
@@ -403,6 +417,7 @@ model PurchaseRequisition {
   purchaseOrders PurchaseOrder[]
 
   @@unique([tenantId, number])
+  @@index([tenantId, status])
 }
 
 enum PRStatus {
@@ -423,6 +438,9 @@ model PRItem {
 
   pr       PurchaseRequisition @relation(fields: [prId], references: [id])
   material Material            @relation(fields: [materialId], references: [id])
+
+  @@index([prId])
+  @@index([materialId])
 }
 
 // ─── MM: Purchase Order ───────────────────────────────────────────────────────
@@ -447,6 +465,9 @@ model PurchaseOrder {
   goodsReceipts GoodsReceipt[]
 
   @@unique([tenantId, number])
+  @@index([vendorId])
+  @@index([prId])
+  @@index([tenantId, status])
 }
 
 enum POStatus {
@@ -469,6 +490,9 @@ model POItem {
   po       PurchaseOrder @relation(fields: [poId], references: [id])
   material Material      @relation(fields: [materialId], references: [id])
   grItems  GRItem[]
+
+  @@index([poId])
+  @@index([materialId])
 }
 
 // ─── MM: Goods Receipt ────────────────────────────────────────────────────────
@@ -490,6 +514,8 @@ model GoodsReceipt {
   items   GRItem[]
 
   @@unique([tenantId, number])
+  @@index([poId])
+  @@index([tenantId, status])
 }
 
 enum GRStatus {
@@ -509,6 +535,10 @@ model GRItem {
   gr       GoodsReceipt @relation(fields: [grId], references: [id])
   poItem   POItem       @relation(fields: [poItemId], references: [id])
   material Material     @relation(fields: [materialId], references: [id])
+
+  @@index([grId])
+  @@index([poItemId])
+  @@index([materialId])
 }
 
 // ─── SD: Customer (Business Partner - Customer) ───────────────────────────────
@@ -532,6 +562,7 @@ model Customer {
   customerInvoices CustomerInvoice[]
 
   @@unique([tenantId, code])
+  @@index([glAccountId])
 }
 
 // ─── SD: Sales Order ──────────────────────────────────────────────────────────
@@ -555,6 +586,8 @@ model SalesOrder {
   invoices   CustomerInvoice[]
 
   @@unique([tenantId, number])
+  @@index([customerId])
+  @@index([tenantId, status])
 }
 
 enum SalesOrderStatus {
@@ -578,6 +611,9 @@ model SOItem {
   so           SalesOrder   @relation(fields: [soId], references: [id])
   material     Material     @relation(fields: [materialId], references: [id])
   deliveryItems DeliveryItem[]
+
+  @@index([soId])
+  @@index([materialId])
 }
 
 // ─── SD: Delivery ─────────────────────────────────────────────────────────────
@@ -600,6 +636,8 @@ model Delivery {
   invoices CustomerInvoice[]
 
   @@unique([tenantId, number])
+  @@index([soId])
+  @@index([tenantId, status])
 }
 
 enum DeliveryStatus {
@@ -620,6 +658,10 @@ model DeliveryItem {
   delivery Delivery @relation(fields: [deliveryId], references: [id])
   soItem   SOItem   @relation(fields: [soItemId], references: [id])
   material Material @relation(fields: [materialId], references: [id])
+
+  @@index([deliveryId])
+  @@index([soItemId])
+  @@index([materialId])
 }
 
 // ─── SD: Customer Invoice ─────────────────────────────────────────────────────
@@ -646,6 +688,10 @@ model CustomerInvoice {
   delivery Delivery?  @relation(fields: [deliveryId], references: [id])
 
   @@unique([tenantId, number])
+  @@index([soId])
+  @@index([deliveryId])
+  @@index([customerId])
+  @@index([tenantId, status])
 }
 
 enum CustomerInvoiceStatus {

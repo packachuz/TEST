@@ -53,7 +53,7 @@ export default function HRAgentPage() {
     }
   }
 
-  const user = session?.user as any;
+  const user = session?.user;
 
   return (
     <div className="flex h-full flex-col">

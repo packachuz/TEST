@@ -28,7 +28,7 @@ function statusVariant(s: string) {
 
 export default function LeavesPage() {
   const { data: session } = useSession();
-  const role = (session?.user as any)?.role as string | undefined;
+  const role = session?.user?.role;
   const canReview = role === "ADMIN" || role === "HR";
 
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);

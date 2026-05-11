@@ -134,7 +134,7 @@ export default async function SDPage() {
                       <td className="px-4 py-3 font-mono text-xs">{order.number}</td>
                       <td className="px-4 py-3 text-gray-600">{formatDate(order.date)}</td>
                       <td className="px-4 py-3 text-gray-900">{order.customer.name}</td>
-                      <td className="px-4 py-3">{formatCurrency(order.totalAmount)}</td>
+                      <td className="px-4 py-3">{formatCurrency(Number(order.totalAmount))}</td>
                       <td className="px-4 py-3">
                         <Badge variant={soStatusVariant(order.status)}>{order.status}</Badge>
                       </td>

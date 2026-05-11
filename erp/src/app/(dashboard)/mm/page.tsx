@@ -109,7 +109,7 @@ export default async function MMPage() {
                       <td className="px-4 py-3 font-mono text-xs">{po.number}</td>
                       <td className="px-4 py-3 text-gray-600">{formatDate(po.date)}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{po.vendor.name}</td>
-                      <td className="px-4 py-3">{formatCurrency(po.totalAmount)}</td>
+                      <td className="px-4 py-3">{formatCurrency(po.totalAmount.toString())}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${poStatusColor[po.status] ?? "bg-gray-100 text-gray-700"}`}>
                           {po.status.replace(/_/g, " ")}

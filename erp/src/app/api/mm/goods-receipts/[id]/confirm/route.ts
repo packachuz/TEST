@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Decimal } from "@prisma/client/runtime/library";
 
 export async function POST(_req: NextRequest, ctx: RouteContext<"/api/mm/goods-receipts/[id]/confirm">) {
   const session = await getServerSession(authOptions);
@@ -69,14 +68,14 @@ export async function POST(_req: NextRequest, ctx: RouteContext<"/api/mm/goods-r
             create: [
               {
                 glAccountId: inventoryAccount.id,
-                debit: new Decimal(totalValue),
-                credit: new Decimal(0),
+                debit: totalValue,
+                credit: 0,
                 description: `Inventory - ${gr.number}`,
               },
               {
                 glAccountId: grirAccount.id,
-                debit: new Decimal(0),
-                credit: new Decimal(totalValue),
+                debit: 0,
+                credit: totalValue,
                 description: `GR/IR Clearing - ${gr.number}`,
               },
             ],

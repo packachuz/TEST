@@ -174,6 +174,10 @@ async function executeTool(name: string, input: Record<string, string>, tenantId
 
     case "approve_leave": {
       if (!["HR", "ADMIN"].includes(userRole)) return { error: "Only HR or ADMIN can approve leave requests." };
+      const existing = await prisma.leaveRequest.findFirst({
+        where: { id: input.leave_id, employee: { tenantId } },
+      });
+      if (!existing) return { error: "Leave request not found" };
       const updated = await prisma.leaveRequest.update({
         where: { id: input.leave_id },
         data: { status: "APPROVED", reviewedAt: new Date() },
@@ -184,6 +188,10 @@ async function executeTool(name: string, input: Record<string, string>, tenantId
 
     case "reject_leave": {
       if (!["HR", "ADMIN"].includes(userRole)) return { error: "Only HR or ADMIN can reject leave requests." };
+      const existing = await prisma.leaveRequest.findFirst({
+        where: { id: input.leave_id, employee: { tenantId } },
+      });
+      if (!existing) return { error: "Leave request not found" };
       const updated = await prisma.leaveRequest.update({
         where: { id: input.leave_id },
         data: { status: "REJECTED", reviewedAt: new Date() },
@@ -258,56 +266,81 @@ async function executeTool(name: string, input: Record<string, string>, tenantId
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { messages } = await req.json();
-  const tenantId = (session.user as any).tenantId;
-  const userRole = (session.user as any).role;
+    const body = await req.json();
+    const { messages } = body;
 
-  const systemPrompt = `You are an intelligent HR assistant for the company's HR & Payroll ERP system.
+    if (!Array.isArray(messages)) {
+      return NextResponse.json({ error: "messages must be an array" }, { status: 400 });
+    }
+    if (messages.length > 50) {
+      return NextResponse.json({ error: "Too many messages (max 50)" }, { status: 400 });
+    }
+    for (const m of messages) {
+      if (!m || (m.role !== "user" && m.role !== "assistant")) {
+        return NextResponse.json({ error: "Invalid message role" }, { status: 400 });
+      }
+      if (typeof m.content === "string" && m.content.length > 10000) {
+        return NextResponse.json({ error: "Message content too long (max 10000 chars)" }, { status: 400 });
+      }
+    }
+
+    const tenantId = (session.user as any).tenantId;
+    const userRole = (session.user as any).role;
+
+    const systemPrompt = `You are an intelligent HR assistant for the company's HR & Payroll ERP system.
 You have access to real employee data, leave requests, attendance records, and payroll information.
 The user's role is: ${userRole}. Only HR and ADMIN roles can approve/reject leave requests.
 Be concise, helpful, and professional. Format data clearly using lists or tables when appropriate.
 Always use tools to fetch live data rather than making assumptions.`;
 
-  // Agentic loop with tool use
-  let currentMessages: Anthropic.MessageParam[] = messages;
+    // Agentic loop with tool use
+    let currentMessages: Anthropic.MessageParam[] = messages;
 
-  for (let i = 0; i < 5; i++) {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: systemPrompt,
-      tools: HR_TOOLS,
-      messages: currentMessages,
-    });
+    for (let i = 0; i < 5; i++) {
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: HR_TOOLS,
+        messages: currentMessages,
+      });
 
-    if (response.stop_reason === "end_turn") {
-      const text = response.content.find((b) => b.type === "text")?.text ?? "";
-      return NextResponse.json({ reply: text });
-    }
-
-    if (response.stop_reason === "tool_use") {
-      const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-      for (const block of toolUseBlocks) {
-        if (block.type !== "tool_use") continue;
-        const result = await executeTool(block.name, block.input as Record<string, string>, tenantId, userRole);
-        toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
+      if (response.stop_reason === "end_turn") {
+        const text = response.content.find((b) => b.type === "text")?.text ?? "";
+        return NextResponse.json({ reply: text });
       }
 
-      currentMessages = [
-        ...currentMessages,
-        { role: "assistant", content: response.content },
-        { role: "user", content: toolResults },
-      ];
-      continue;
+      if (response.stop_reason === "tool_use") {
+        const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+        for (const block of toolUseBlocks) {
+          if (block.type !== "tool_use") continue;
+          const result = await executeTool(block.name, block.input as Record<string, string>, tenantId, userRole);
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
+        }
+
+        currentMessages = [
+          ...currentMessages,
+          { role: "assistant", content: response.content },
+          { role: "user", content: toolResults },
+        ];
+        continue;
+      }
+
+      break;
     }
 
-    break;
+    return NextResponse.json({ reply: "I wasn't able to complete that request. Please try again." });
+  } catch (err) {
+    console.error("[hr-agent]", err);
+    if (err instanceof Error && err.message.startsWith("CLIENT_ERROR:")) {
+      return NextResponse.json({ error: err.message.slice(13) }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  return NextResponse.json({ reply: "I wasn't able to complete that request. Please try again." });
 }

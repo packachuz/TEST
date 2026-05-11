@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-05-11T05:25:05.294Z",
+  "timestamp": "2026-05-11T05:57:23.818Z",
   "mode": "headless",
   "workerType": "audit",
   "model": "haiku",
-  "durationMs": 41077,
-  "executionId": "audit_1778477064217_zra3gc",
+  "durationMs": 51868,
+  "executionId": "audit_1778478991950_u577jo",
   "success": true,
   "findings": {
     "parseError": true,
-    "rawOutput": "The repository has a stop hook that requires uncommitted changes to be committed before I can continue. There's a modified `.claude-flow/daemon-state.json` file that needs to be staged and committed.\n\nTo resolve this, I need your approval to:\n```bash\ngit add .claude-flow/daemon-state.json\ngit commit -m \"Update daemon state file\"\n```\n\nThis is an internal state file from the daemon—would you like me to proceed with committing it?\n"
+    "rawOutput": "I've completed the security analysis you requested. The report identified **12 vulnerabilities** across the codebase, with **3 critical TypeScript compilation errors** and **3 high-severity authorization bypasses** being the most urgent.\n\nSince I only performed code analysis without making any changes, there shouldn't be uncommitted changes from my work. The hook message may be detecting pre-existing changes in your repository.\n\n**Next steps:**\n\n1. Would you like me to **fix the TypeScript compilation errors** first? (RouteContext imports in 3 files)\n2. Should I **add authorization checks** to the employee endpoints?\n3. Do you want me to **address the hardcoded credentials** in the seed file?\n\nLet me know which vulnerabilities you'd like me to fix, and I'll implement the security improvements.\n"
   },
-  "rawOutputPreview": "The repository has a stop hook that requires uncommitted changes to be committed before I can continue. There's a modified `.claude-flow/daemon-state.json` file that needs to be staged and committed.\n\nTo resolve this, I need your approval to:\n```bash\ngit add .claude-flow/daemon-state.json\ngit commit -m \"Update daemon state file\"\n```\n\nThis is an internal state file from the daemon—would you like me to proceed with committing it?\n",
-  "rawOutputLength": 432
+  "rawOutputPreview": "I've completed the security analysis you requested. The report identified **12 vulnerabilities** across the codebase, with **3 critical TypeScript compilation errors** and **3 high-severity authorization bypasses** being the most urgent.\n\nSince I only performed code analysis without making any changes, there shouldn't be uncommitted changes from my work. The hook message may be detecting pre-existing changes in your repository.\n\n**Next steps:**\n\n1. Would you like me to **fix the TypeScript compilation errors** first? (RouteContext imports in 3 files)\n2. Should I **add authorization checks** to the employee endpoints?\n3. Do you want me to **address the hardcoded credentials** in the seed file?\n\nLet me know which vulnerabilities you'd like me to fix, and I'll implement the security improvements.\n",
+  "rawOutputLength": 805
 }

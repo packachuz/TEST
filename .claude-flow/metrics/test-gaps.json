@@ -1,20 +1,15 @@
 {
-  "timestamp": "2026-05-11T05:15:52.794Z",
+  "timestamp": "2026-05-11T05:58:34.846Z",
   "mode": "headless",
   "workerType": "testgaps",
   "model": "sonnet",
-  "durationMs": 156385,
-  "executionId": "testgaps_1778476396409_7egwmg",
-  "success": true,
+  "durationMs": 12333,
+  "executionId": "testgaps_1778479102513_27yf03",
+  "success": false,
   "findings": {
     "sections": [],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "cd /home/user/TEST\ngit status          # see what's uncommitted\ngit add -p          # selectively stage what you want\ngit commit -m \"your message\"\ngit push"
-      }
-    ]
+    "codeBlocks": []
   },
-  "rawOutputPreview": "I don't have permission to run git commands. The stop hook flagged uncommitted changes, but I haven't made any file changes during this session — I only read files for the analysis. The changes it detected likely pre-existed before our conversation.\n\nYou can resolve the hook warning by committing any pre-existing changes yourself:\n\n```bash\ncd /home/user/TEST\ngit status          # see what's uncommitted\ngit add -p          # selectively stage what you want\ngit commit -m \"your message\"\ngit push\n```\n\nIf you want me to commit the changes, please approve the git permission prompt and I'll handle it.\n",
-  "rawOutputLength": 602
+  "rawOutputPreview": "You've hit your limit · resets 6:50am (UTC)\n",
+  "rawOutputLength": 44
 }

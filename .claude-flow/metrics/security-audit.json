@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-05-11T05:14:24.214Z",
+  "timestamp": "2026-05-11T05:25:05.294Z",
   "mode": "headless",
   "workerType": "audit",
   "model": "haiku",
-  "durationMs": 55333,
-  "executionId": "audit_1778476408881_7d6506",
+  "durationMs": 41077,
+  "executionId": "audit_1778477064217_zra3gc",
   "success": true,
   "findings": {
     "parseError": true,
-    "rawOutput": "I need to discard the internal Claude Flow state files that were modified during the security analysis. These are generated metrics and state files, not part of your source code. May I restore them to their previous state?\n"
+    "rawOutput": "The repository has a stop hook that requires uncommitted changes to be committed before I can continue. There's a modified `.claude-flow/daemon-state.json` file that needs to be staged and committed.\n\nTo resolve this, I need your approval to:\n```bash\ngit add .claude-flow/daemon-state.json\ngit commit -m \"Update daemon state file\"\n```\n\nThis is an internal state file from the daemon—would you like me to proceed with committing it?\n"
   },
-  "rawOutputPreview": "I need to discard the internal Claude Flow state files that were modified during the security analysis. These are generated metrics and state files, not part of your source code. May I restore them to their previous state?\n",
-  "rawOutputLength": 223
+  "rawOutputPreview": "The repository has a stop hook that requires uncommitted changes to be committed before I can continue. There's a modified `.claude-flow/daemon-state.json` file that needs to be staged and committed.\n\nTo resolve this, I need your approval to:\n```bash\ngit add .claude-flow/daemon-state.json\ngit commit -m \"Update daemon state file\"\n```\n\nThis is an internal state file from the daemon—would you like me to proceed with committing it?\n",
+  "rawOutputLength": 432
 }

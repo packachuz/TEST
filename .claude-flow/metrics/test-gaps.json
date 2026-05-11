@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-05-11T04:08:05.736Z",
+  "mode": "headless",
+  "workerType": "testgaps",
+  "model": "sonnet",
+  "durationMs": 197770,
+  "executionId": "testgaps_1778472287966_btcd59",
+  "success": true,
+  "findings": {
+    "sections": [],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "git add .claude-flow/daemon-state.json \\\n        .claude-flow/daemon.pid \\\n        .claude-flow/metrics/consolidation.json \\\n        .claude-flow/metrics/performance.json \\\n        .claude-flow/metrics/security-audit.json\n\ngit commit -m \"Add claude-flow daemon state and metrics snapshots\"\n\ngit push"
+      }
+    ]
+  },
+  "rawOutputPreview": "The git commands are being blocked by the permission settings. I can't commit and push without approval for those commands — please approve the git operations, or you can run the following yourself:\n\n```bash\ngit add .claude-flow/daemon-state.json \\\n        .claude-flow/daemon.pid \\\n        .claude-flow/metrics/consolidation.json \\\n        .claude-flow/metrics/performance.json \\\n        .claude-flow/metrics/security-audit.json\n\ngit commit -m \"Add claude-flow daemon state and metrics snapshots\"\n\ngit push\n```\n\nThese are all auto-generated runtime files (daemon PID/state, performance metrics, security audit results) — none contain secrets or credentials.\n",
+  "rawOutputLength": 659
+}

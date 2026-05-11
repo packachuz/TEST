@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-05-11T04:01:26.942Z",
+  "mode": "headless",
+  "workerType": "optimize",
+  "model": "sonnet",
+  "durationMs": 38976,
+  "executionId": "optimize_1778472047966_xxfuop",
+  "success": true,
+  "findings": {
+    "sections": [],
+    "codeBlocks": []
+  },
+  "rawOutputPreview": "These are all **runtime/ephemeral files** — not meaningful changes to commit:\n\n- `.claude-flow/daemon-state.json` — timestamps and run-counts from the daemon process\n- `.claude-flow/daemon.pid` — the daemon's process ID (definitely not for version control)\n- `.claude-flow/metrics/security-audit.json` — runtime metrics output\n\nNone of these represent code or configuration changes worth committing. I'd recommend adding them to `.gitignore` rather than committing them. Would you like me to:\n\n1. **Add these paths to `.claude-flow/.gitignore`** so the stop hook stops flagging them, or\n2. **Commit them anyway** if you want the daemon state tracked?\n",
+  "rawOutputLength": 651
+}

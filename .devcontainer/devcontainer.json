@@ -15,7 +15,8 @@
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "remoteEnv": {
-    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/erp"
+    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/erp",
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
   },
   "customizations": {
     "vscode": {

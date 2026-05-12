@@ -24,6 +24,7 @@ import {
   ShoppingBag,
   PackageCheck,
   Receipt,
+  NotebookPen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ const navGroups: NavGroup[] = [
       { href: "/leaves", label: "Leaves", icon: FileText },
       { href: "/payroll", label: "Payroll", icon: DollarSign },
       { href: "/hr-agent", label: "HR AI Agent", icon: Sparkles },
+      { href: "/notebooklm", label: "NotebookLM", icon: NotebookPen },
     ],
   },
   {
